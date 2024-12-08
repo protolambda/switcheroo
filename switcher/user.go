@@ -48,7 +48,7 @@ func NewUser(log log.Logger, conn *websocket.Connection, meta *websocket.Connect
 		inwards:  make(chan *Envelope, 100),
 		outwards: make(chan *Envelope, 100),
 	}
-	setupClientLoops(u)
+	setupClientLoops(u.log.New("user", u.Meta.RemoteAddr), u.Conn, u.RPC, u.Meta.Context, u.inwards, u.outwards)
 	return u
 }
 
@@ -58,33 +58,40 @@ func (u *User) Close() error {
 	return u.Conn.Close()
 }
 
-func setupClientLoops(c *User) {
+type Messenger interface {
+	websocket.Messenger
+	CloseWithCause(cause error)
+	CloseCtx() context.Context
+}
+
+func setupClientLoops(log log.Logger, conn Messenger, rpc ws.JSONRPCConnection,
+	msgCtx context.Context, inwards, outwards chan *Envelope) {
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-				c.Conn.CloseWithCause(fmt.Errorf("writer panic: %v", err))
+				conn.CloseWithCause(fmt.Errorf("writer panic: %v", err))
 			} else {
-				c.Conn.CloseWithCause(context.Canceled)
+				conn.CloseWithCause(context.Canceled)
 			}
-			c.log.Info("Closed user write-loop")
+			log.Info("Closed write-loop")
 		}()
-		c.log.Info("Opened user write-loop")
+		log.Info("Opened write-loop")
 		for {
 			select {
-			case <-c.Conn.CloseCtx().Done():
+			case <-conn.CloseCtx().Done():
 				return
-			case envelope, ok := <-c.outwards:
+			case envelope, ok := <-outwards:
 				if !ok {
 					return
 				}
-				c.log.Info("writing message to user", "user", c.Meta.RemoteAddr, "msg", envelope.JSON())
-				if err := c.RPC.Write(&envelope.Msg); err != nil {
-					if c.Conn.Err() != nil {
-						c.log.Warn("cannot write to broken connection",
-							"err", err, "connectionErr", c.Conn.Err())
+				log.Info("writing message", "msg", envelope.JSON())
+				if err := rpc.Write(&envelope.Msg); err != nil {
+					if conn.Err() != nil {
+						log.Warn("cannot write to broken connection",
+							"err", err, "connectionErr", conn.Err())
 						return
 					}
-					c.log.Error("failed to write message", "err", err)
+					log.Error("failed to write message", "err", err)
 					continue
 				}
 			}
@@ -93,33 +100,33 @@ func setupClientLoops(c *User) {
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-				c.Conn.CloseWithCause(fmt.Errorf("reader panic: %v", err))
+				conn.CloseWithCause(fmt.Errorf("reader panic: %v", err))
 			} else {
-				c.Conn.CloseWithCause(context.Canceled)
+				conn.CloseWithCause(context.Canceled)
 			}
-			c.log.Info("Closed user read-loop")
+			log.Info("Closed read-loop")
 		}()
-		c.log.Info("Opened user read-loop")
+		log.Info("Opened read-loop")
 		for {
 			var dest jsonrpc.Message
-			if err := c.RPC.Read(&dest); err != nil {
-				if c.Conn.Err() != nil {
+			if err := rpc.Read(&dest); err != nil {
+				if conn.Err() != nil {
 					// connection issue / close
 					return
 				}
-				c.log.Error("failed to decode message", "err", err)
+				log.Error("failed to decode message", "err", err)
 				continue
 			}
 			e := &Envelope{
-				Ctx: c.Meta.Context,
+				Ctx: msgCtx,
 				Msg: dest,
 			}
 			select {
-			case <-c.Conn.CloseCtx().Done():
+			case <-conn.CloseCtx().Done():
 				return
-			case c.inwards <- e:
+			case inwards <- e:
 			}
-			c.log.Info("reading message from user", "user", c.Meta.RemoteAddr, "msg", e.JSON())
+			log.Info("reading message", "msg", e.JSON())
 		}
 	}()
 }
