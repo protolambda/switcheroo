@@ -15,15 +15,18 @@ type Backend struct {
 
 	wsSrv *websocket.Server[*User]
 
+	cfg *Config
+
 	acceptNew atomic.Bool
 
 	mux *http.ServeMux
 }
 
-func NewBackend(log log.Logger) *Backend {
+func NewBackend(log log.Logger, cfg *Config) *Backend {
 	mux := http.NewServeMux()
 	backend := &Backend{
 		log:   log,
+		cfg:   cfg,
 		wsSrv: nil,
 		mux:   mux,
 	}

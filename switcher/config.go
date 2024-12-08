@@ -1,8 +1,12 @@
 package switcher
 
 import (
+	"fmt"
+	"os"
 	"regexp"
 	"time"
+
+	"gopkg.in/yaml.v3"
 
 	jsonrpc "github.com/protolambda/jsonrpc2"
 )
@@ -12,6 +16,21 @@ type Config struct {
 	Targets map[string]*Target `yaml:"targets"`
 	// Sources are expected incoming connections
 	Sources map[string]*Source `yaml:"sources"`
+}
+
+func LoadConfig(p string) (*Config, error) {
+	f, err := os.Open(p)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open config: %w", err)
+	}
+	defer f.Close()
+	dec := yaml.NewDecoder(f)
+	dec.KnownFields(true)
+	var cfg Config
+	if err := dec.Decode(&cfg); err != nil {
+		return nil, fmt.Errorf("failed to decode config: %w", err)
+	}
+	return &cfg, nil
 }
 
 type Target struct {

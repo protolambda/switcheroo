@@ -26,8 +26,8 @@ type Server struct {
 	running atomic.Bool
 }
 
-func NewServer(log log.Logger, addr string) *Server {
-	backend := NewBackend(log)
+func NewServer(log log.Logger, addr string, cfg *Config) *Server {
+	backend := NewBackend(log, cfg)
 	return &Server{
 		log:  log,
 		addr: addr,
