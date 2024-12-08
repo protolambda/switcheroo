@@ -36,6 +36,14 @@ func NewBackend(log log.Logger, cfg *Config) *Backend {
 	return backend
 }
 
+func (ba *Backend) Start() error {
+	// TODO dial each endpoint
+
+	// TODO start running all of the config effect routines
+
+	return nil
+}
+
 func (ba *Backend) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ba.mux.ServeHTTP(w, r)
 }

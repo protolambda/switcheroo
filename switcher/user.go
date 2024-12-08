@@ -33,6 +33,8 @@ type User struct {
 
 	log log.Logger
 
+	cfg *Source
+
 	inwards  chan *Envelope
 	outwards chan *Envelope
 }

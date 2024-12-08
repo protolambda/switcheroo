@@ -1,0 +1,26 @@
+sources:
+  op-node-1:
+    effects:
+      - direction: source-request
+        delay:
+          time: 2s
+  op-node-2:
+    effects:
+      - delay: 2s
+targets:
+  l1-1:
+    endpoint: "ws://l1-1:8545/ws"
+    keepAlive: true
+    effects:
+      - direction: source-request
+        drop:
+          chance: 0.1
+      - error:
+          chance: 0.1
+          code: -32603
+  op-geth-1:
+    endpoint: "ws://op-geth-1:8545/ws"
+    effects:
+      - rateLimit:
+          burst: 10
+          rate: 3
